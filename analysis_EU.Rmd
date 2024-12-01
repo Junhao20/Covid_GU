@@ -1,0 +1,138 @@
+---
+title: "EDA FINAL PROJ"
+author: "Hermann Fan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+# load the dataset
+df <- read.csv("data_tables/eu/data.csv")
+head(df)
+```
+```{r}
+# STEP 1: DATA CLEANING
+df_clean <- na.omit(df)
+```
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# View basic statistics
+summary(df)
+str(df)
+```
+
+```{r}
+df %>%
+  group_by(Vaccine) %>%
+  summarise(TotalDoses = sum(FirstDose + SecondDose, na.rm = TRUE)) %>%
+  ggplot(aes(x = Vaccine, y = TotalDoses, fill = Vaccine)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Total Vaccine Doses by Vaccine Type") +
+  xlab("Vaccine Type") +
+  ylab("Total Doses") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Read the CSV files
+death_df <- read.csv("data_tables/eu/death.csv")
+# Aggregate data to reduce size, including positivity_rate
+data_aggregated <- df %>%
+  group_by(ReportingCountry) %>%
+  summarise(
+    Denominator = mean(Denominator, na.rm = TRUE),
+    NumberDosesReceived = mean(NumberDosesReceived, na.rm = TRUE)
+  )
+
+death_aggregated <- death_df %>%
+  group_by(country_code) %>%
+  summarise(
+    new_cases = mean(new_cases, na.rm = TRUE),
+    tests_done = mean(tests_done, na.rm = TRUE),
+    positivity_rate = mean(positivity_rate, na.rm = TRUE) # Include positivity rate
+  )
+
+# Merge the datasets
+merged_reduced_df <- merge(data_aggregated, death_aggregated, 
+                           by.x = "ReportingCountry", by.y = "country_code", all = FALSE)
+
+# Replace NA values with the median for numerical columns
+for (col in names(merged_reduced_df)) {
+  if (is.numeric(merged_reduced_df[[col]])) {
+    median_value <- median(merged_reduced_df[[col]], na.rm = TRUE)
+    merged_reduced_df[[col]][is.na(merged_reduced_df[[col]])] <- median_value
+  }
+}
+
+# View the final dataset
+print(merged_reduced_df)
+
+# Optionally, write the final dataset to a CSV file
+write.csv(merged_reduced_df, "merged_reduced_data_with_positivity_rate.csv", row.names = FALSE)
+```
+
+```{r}
+merged <- read.csv("data_tables/eu/merge.csv")
+
+summary(merged)
+colSums(is.na(merged))
+
+pairs(merged[, sapply(merged, is.numeric)], main = "Pairwise Scatterplot")
+library(corrplot)
+corr_matrix <- cor(merged[, sapply(merged, is.numeric)], use = "complete.obs")
+corrplot(corr_matrix, method = "circle")
+```
+#1
+
+```{r}
+merged$NumberDosesReceived <- as.numeric(merged$NumberDosesReceived)
+merged$new_cases <- as.numeric(merged$new_cases)
+
+merged <- na.omit(merged)
+
+high_doses <- subset(merged, NumberDosesReceived > median(merged$NumberDosesReceived))
+low_doses <- subset(merged, NumberDosesReceived <= median(merged$NumberDosesReceived))
+
+t_test_result <- t.test(high_doses$new_cases, low_doses$new_cases, alternative = "two.sided")
+
+print("T-Test Result:")
+print(t_test_result)
+```
+# 2
+Countries with a higher denominator (population) have significantly different mean new cases (new_cases) compared to countries with a lower denominator.
+```{r}
+high_denominator <- subset(merged, Denominator > median(merged$Denominator))
+low_denominator <- subset(merged, Denominator <= median(merged$Denominator))
+
+t_test_denominator <- t.test(high_denominator$new_cases, low_denominator$new_cases, alternative = "two.sided")
+
+print("T-Test for Denominator and New Cases:")
+print(t_test_denominator)
+```
+```{r}
+ggplot(merged, aes(x = reorder(ReportingCountry, -new_cases), y = new_cases)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(
+    title = "New Cases by Country",
+    x = "Country",
+    y = "New Cases"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+```
+
