@@ -20,7 +20,7 @@ head(df)
 ```
 ```{r}
 # STEP 1: DATA CLEANING
-df_clean <- na.omit(df)
+df_clean <- na.omit(df)# get rid of the missing values
 ```
 
 ```{r}
@@ -88,6 +88,7 @@ write.csv(merged_reduced_df, "merged_reduced_data_with_positivity_rate.csv", row
 
 ```{r}
 merged <- read.csv("data_tables/eu/merge.csv")
+head(merged)
 
 summary(merged)
 colSums(is.na(merged))
@@ -97,7 +98,7 @@ library(corrplot)
 corr_matrix <- cor(merged[, sapply(merged, is.numeric)], use = "complete.obs")
 corrplot(corr_matrix, method = "circle")
 ```
-#1
+# T TEST 1
 
 ```{r}
 merged$NumberDosesReceived <- as.numeric(merged$NumberDosesReceived)
@@ -113,7 +114,7 @@ t_test_result <- t.test(high_doses$new_cases, low_doses$new_cases, alternative =
 print("T-Test Result:")
 print(t_test_result)
 ```
-# 2
+# T TEST 2
 Countries with a higher denominator (population) have significantly different mean new cases (new_cases) compared to countries with a lower denominator.
 ```{r}
 high_denominator <- subset(merged, Denominator > median(merged$Denominator))
@@ -124,15 +125,95 @@ t_test_denominator <- t.test(high_denominator$new_cases, low_denominator$new_cas
 print("T-Test for Denominator and New Cases:")
 print(t_test_denominator)
 ```
+
 ```{r}
-ggplot(merged, aes(x = reorder(ReportingCountry, -new_cases), y = new_cases)) +
+merged$new_case_standerdized <- (merged$new_cases / merged$Denominator)*100
+head(merged)
+```
+# T Test 3 --> Does the Number Doses Received affect the new case per capita?
+H0: No effect
+H1: Yes there is an effect
+
+```{r}
+# Ensure columns are numeric
+merged$NumberDosesReceived <- as.numeric(merged$NumberDosesReceived)
+merged$new_case_standerdized <- as.numeric(merged$new_case_standerdized)
+
+# Perform a paired t-test
+t_test_result <- t.test(merged$NumberDosesReceived, merged$new_case_standerdized, paired = TRUE)
+
+print("T-Test Result (Number of Doses Received vs New Cases):")
+print(t_test_result)
+```
+> If we are setting the significant level as 5%, P-VALUE actually greater than the Alpha, we failed to reject H0, but it's not that far away, I will go with Ha is right.
+
+```{r}
+# Ensure columns are numeric
+merged$NumberDosesReceived <- as.numeric(merged$NumberDosesReceived)
+merged$positivity_rate <- as.numeric(merged$positivity_rate)
+
+t_test_result <- t.test(merged$NumberDosesReceived, merged$positivity_rate, paired = TRUE)
+
+print("T-Test Result (Number of Doses Received vs New Cases):")
+print(t_test_result)
+```
+
+```{r}
+ggplot(merged, aes(x = reorder(ReportingCountry, -positivity_rate), y = positivity_rate)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(
+    title = "Positivity Rate by Country",
+    x = "Country",
+    y = "Positivity Rate"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+```
+# New Dataset with death_rate:
+
+```{r}
+dr_df <- read.csv("data_tables/eu/d_r.csv")
+head(dr_df)
+```
+```{r}
+total_deaths_by_country <- aggregate(deaths ~ geoId, data = dr_df, sum)
+
+ggplot(total_deaths_by_country, aes(x = reorder(geoId, -deaths), y = deaths)) +
   geom_bar(stat = "identity", fill = "skyblue") +
   labs(
-    title = "New Cases by Country",
+    title = "Total Deaths by Country",
     x = "Country",
-    y = "New Cases"
+    y = "Total Deaths"
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+
+```
+```{r}
+total_cases_by_year <- aggregate(cases ~ year, data = dr_df, sum)
+
+ggplot(total_cases_by_year, aes(x = year, y = cases)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "darkblue", size = 3) +
+  labs(
+    title = "Total Cases by Year",
+    x = "Year",
+    y = "Total Cases"
+  ) +
+  theme_minimal()
+```
+```{r}
+total_deaths_by_year <- aggregate(deaths ~ year, data = dr_df, sum)
+
+# Create a line plot of total cases vs year
+ggplot(total_deaths_by_year, aes(x = year, y = deaths)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "darkblue", size = 3) +
+  labs(
+    title = "Total deaths by Year",
+    x = "Year",
+    y = "Total Deaths"
+  ) +
+  theme_minimal()
 ```
 
